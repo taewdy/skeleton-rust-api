@@ -1,0 +1,14 @@
+log_level: debug
+
+server:
+  host: 127.0.0.1
+  port: 8081
+  timeout: 30s
+
+database:
+  driver: "postgres"
+  database_url: "postgres://db:db@localhost:5432/db"
+  max_connection: 20
+  max_idle_connection: 10
+  conn_max_lifetime: 30m
+  ping_timeout: 5s

@@ -1,0 +1,60 @@
+name: Semantic Versioning Tag on PR Merge
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  tag-version:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Necessary to fetch all tags
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Determine new version and tag
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          # Fetch all tags, sort them, and get the latest
+          LATEST_TAG=$(git tag --sort=-v:refname | head -n 1)
+          echo "Latest tag: $LATEST_TAG"
+
+          # If there are no tags yet, start with 0.0.0
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="v0.0.0"
+          fi
+
+          # Increment the version based on PR title
+          BASE_VERSION=${LATEST_TAG#v}
+          MAJOR=$(echo $BASE_VERSION | cut -d. -f1)
+          MINOR=$(echo $BASE_VERSION | cut -d. -f2)
+          PATCH=$(echo $BASE_VERSION | cut -d. -f3)
+
+          if [[ "$PR_TITLE" == "major:"* ]]; then
+            MAJOR=$((MAJOR+1))
+            MINOR=0
+            PATCH=0
+          elif [[ "$PR_TITLE" == "minor:"* ]]; then
+            MINOR=$((MINOR+1))
+            PATCH=0
+          elif [[ "$PR_TITLE" == "patch:"* ]]; then
+            PATCH=$((PATCH+1))
+          else
+            echo "PR title does not specify version increment. Skipping."
+            exit 0
+          fi
+
+          NEW_TAG="v$MAJOR.$MINOR.$PATCH"
+          echo "New tag: $NEW_TAG"
+
+          # Create and push the new tag
+          git tag -a "$NEW_TAG" -m "New version $NEW_TAG"
+          git push origin --tags
