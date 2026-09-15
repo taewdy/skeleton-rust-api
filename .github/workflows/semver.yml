@@ -4,6 +4,9 @@ on:
   pull_request:
     types: [closed]
 
+permissions:
+  contents: write # push the version tag
+
 jobs:
   tag-version:
     if: github.event.pull_request.merged == true
