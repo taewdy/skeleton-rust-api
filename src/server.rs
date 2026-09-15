@@ -58,6 +58,16 @@ impl Server {
     /// Starts the HTTP server and serves until a shutdown signal (SIGINT or
     /// SIGTERM) is received, then drains in-flight requests.
     pub async fn start(self) -> Result<(), Error> {
+        self.start_with_shutdown(shutdown_signal()).await
+    }
+
+    /// Starts the HTTP server and serves until `shutdown` resolves, then
+    /// drains in-flight requests. `start` uses the OS signals; tests pass a
+    /// future they control.
+    pub async fn start_with_shutdown(
+        self,
+        shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+    ) -> Result<(), Error> {
         let listener = tokio::net::TcpListener::bind(&self.addr)
             .await
             .map_err(Error::Bind)?;
@@ -65,7 +75,7 @@ impl Server {
         info!(addr = %self.addr, "server listening");
 
         axum::serve(listener, self.router)
-            .with_graceful_shutdown(shutdown_signal())
+            .with_graceful_shutdown(shutdown)
             .await
             .map_err(Error::Serve)
     }
@@ -192,5 +202,33 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
         assert_eq!(body, "world");
+    }
+
+    #[tokio::test]
+    async fn start_serves_until_shutdown_resolves() {
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        let server = test_server(vec![]);
+        let handle = tokio::spawn(server.start_with_shutdown(async {
+            let _ = rx.await;
+        }));
+
+        tx.send(()).unwrap();
+
+        assert!(handle.await.unwrap().is_ok());
+    }
+
+    #[tokio::test]
+    async fn start_fails_when_the_address_cannot_be_bound() {
+        let cfg = config::Server {
+            host: "256.256.256.256".to_string(),
+            port: 1,
+            timeout: std::time::Duration::from_secs(1),
+        };
+        let err = Server::new(&cfg, vec![])
+            .start_with_shutdown(std::future::pending())
+            .await
+            .unwrap_err();
+
+        assert!(matches!(err, Error::Bind(_)));
     }
 }

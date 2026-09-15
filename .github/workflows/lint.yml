@@ -12,9 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+      # rustup reads rust-toolchain.toml (channel, components, targets), so CI
+      # installs exactly the toolchain that `make lint` uses locally.
+      - name: install pinned toolchain
+        run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - name: rustfmt
         run: cargo fmt --all --check
@@ -25,7 +26,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      # rustup reads rust-toolchain.toml (channel, components, targets), so CI
+      # installs exactly the toolchain that `make lint` uses locally.
+      - name: install pinned toolchain
+        run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: test
